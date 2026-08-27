@@ -5,6 +5,26 @@ import { modelRegistryService } from '../services/model-registry.service.js';
 
 export const healthRoutes: FastifyPluginAsync = async (fastify) => {
   /**
+   * GET / - Welcome & API Gateway root status
+   */
+  fastify.get('/', async (_req, reply) => {
+    reply.send({
+      name: 'FilyBase Inference Gateway',
+      status: 'online',
+      version: '1.0.0',
+      health: '/healthz',
+      endpoints: {
+        chat: '/v1/chat/completions',
+        completions: '/v1/completions',
+        images: '/v1/images/generations',
+        audio: '/v1/audio/transcriptions',
+        embeddings: '/v1/embeddings',
+        models: '/v1/models',
+      },
+    });
+  });
+
+  /**
    * GET /healthz - Comprehensive passive health check
    */
   fastify.get('/healthz', async (_req, reply) => {
