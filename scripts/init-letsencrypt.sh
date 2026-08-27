@@ -17,24 +17,27 @@ if [ -d "$DATA_PATH/conf/live/${DOMAINS[0]}" ]; then
   fi
 fi
 
+echo "### 0. Cleaning up any conflicting old containers..."
+docker rm -f filybase-caddy 2>/dev/null || true
+
 echo "### 1. Creating directory structure ..."
 mkdir -p "$DATA_PATH/conf/live/${DOMAINS[0]}"
 mkdir -p "$DATA_PATH/www"
 
 echo "### 2. Creating temporary dummy certificate for ${DOMAINS[0]} ..."
 path="/etc/letsencrypt/live/${DOMAINS[0]}"
-docker compose run --rm --entrypoint "\
+docker compose run --rm --remove-orphans --entrypoint "\
   openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
     -keyout '$path/privkey.pem' \
     -out '$path/fullchain.pem' \
     -subj '/CN=localhost'" certbot
 
 # Also create chain.pem for OCSP stapling if needed
-docker compose run --rm --entrypoint "\
+docker compose run --rm --remove-orphans --entrypoint "\
   cp '$path/fullchain.pem' '$path/chain.pem'" certbot
 
 echo "### 3. Starting Nginx container ..."
-docker compose up --force-recreate -d nginx
+docker compose up --remove-orphans --force-recreate -d nginx
 
 echo "### 4. Deleting temporary dummy certificate ..."
 docker compose run --rm --entrypoint "\
