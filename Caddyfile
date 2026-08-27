@@ -7,9 +7,8 @@
 	}
 }
 
-{$DOMAIN:localhost} {
-	# Enforce modern TLS
-	tls internal
+{$DOMAIN:api.filybase.io} {
+	# Automatic HTTPS with Let's Encrypt / ZeroSSL
 
 	# Security Headers
 	header {
