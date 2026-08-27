@@ -1,0 +1,120 @@
+models:
+  - id: "gpt-oss-120b"
+    display_name: "GPT OSS 120B"
+    provider: "Filybase"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://150.136.129.227:8000/v1"
+    upstream_model: "openai/gpt-oss-120b"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.03
+    price_out_per_mtok: 0.15
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "llama-3.3-70b"
+    display_name: "Llama 3.3 70B Instruct"
+    provider: "Meta"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://127.0.0.1:8001/v1"
+    upstream_model: "meta-llama/Llama-3.3-70B-Instruct"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.50
+    price_out_per_mtok: 1.50
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "llama-3.1-8b"
+    display_name: "Llama 3.1 8B Instruct"
+    provider: "Meta"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://127.0.0.1:8001/v1"
+    upstream_model: "meta-llama/Llama-3.1-8B-Instruct"
+    ctx_len: 131072
+    max_concurrency: 64
+    price_in_per_mtok: 0.10
+    price_out_per_mtok: 0.20
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "mixtral-8x7b"
+    display_name: "Mixtral 8x7B Instruct"
+    provider: "Mistral"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://127.0.0.1:8001/v1"
+    upstream_model: "mistralai/Mixtral-8x7B-Instruct-v0.1"
+    ctx_len: 32768
+    max_concurrency: 24
+    price_in_per_mtok: 0.40
+    price_out_per_mtok: 1.00
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "qwen-2.5-72b"
+    display_name: "Qwen 2.5 72B Instruct"
+    provider: "Alibaba"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://127.0.0.1:8001/v1"
+    upstream_model: "Qwen/Qwen2.5-72B-Instruct"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.45
+    price_out_per_mtok: 1.40
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "stable-diffusion-3.5"
+    display_name: "Stable Diffusion 3.5 Large"
+    provider: "Stability AI"
+    category: "image"
+    engine: "diffusers"
+    upstream_url: "http://127.0.0.1:8002/v1"
+    upstream_model: "stabilityai/stable-diffusion-3.5-large"
+    ctx_len: 0
+    max_concurrency: 4
+    price_in_per_mtok: 0.0
+    price_out_per_mtok: 0.0
+    price_per_image: 0.035
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "whisper-large-v3"
+    display_name: "Faster Whisper Large v3"
+    provider: "OpenAI"
+    category: "audio"
+    engine: "whisper"
+    upstream_url: "http://127.0.0.1:8003/v1"
+    upstream_model: "openai/whisper-large-v3"
+    ctx_len: 0
+    max_concurrency: 8
+    price_in_per_mtok: 0.0
+    price_out_per_mtok: 0.0
+    price_per_image: 0.0
+    price_per_audio_min: 0.006
+    status: "live"
+
+  - id: "bge-large-en-v1.5"
+    display_name: "BGE Large English v1.5"
+    provider: "BAAI"
+    category: "embedding"
+    engine: "tei"
+    upstream_url: "http://127.0.0.1:8004/v1"
+    upstream_model: "BAAI/bge-large-en-v1.5"
+    ctx_len: 512
+    max_concurrency: 64
+    price_in_per_mtok: 0.02
+    price_out_per_mtok: 0.0
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"

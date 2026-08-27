@@ -1,0 +1,172 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # FilyBase Inference Gateway Service
+  # ============================================================================
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: filybase-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://filybase:filybase_secret_pass@postgres:5432/filybase
+      - REDIS_URL=redis://:redis_secret_pass@redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-filybase_super_secret_jwt_key_at_least_32_chars_long_12345}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-filybase_super_secret_refresh_jwt_key_32_chars_long_67890}
+      - COOKIE_SECRET=${COOKIE_SECRET:-filybase_super_secret_cookie_signing_key_32_chars_long_abcde}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080,https://app.filybase.com}
+      - QUEUE_WAIT_MS=10000
+      - QUEUE_POLL_INTERVAL_MS=50
+      - DEFAULT_KEY_RPM=600
+      - DEFAULT_PROJECT_TPM=500000
+      - USAGE_FLUSH_INTERVAL_MS=1000
+      - USAGE_BATCH_SIZE=500
+      - ROLLUP_REFRESH_INTERVAL_MS=60000
+      - MOCK_UPSTREAM_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - filybase-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ============================================================================
+  # PostgreSQL 16 Database
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: filybase-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=filybase
+      - POSTGRES_PASSWORD=filybase_secret_pass
+      - POSTGRES_DB=filybase
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - filybase-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U filybase -d filybase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Redis 7 Cache & Distributed Semaphores
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: filybase-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "redis_secret_pass"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - filybase-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret_pass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================================
+  # Caddy Reverse Proxy & Edge TLS Termination
+  # ============================================================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: filybase-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - gateway
+    networks:
+      - filybase-net
+
+  # ============================================================================
+  # Prometheus Observability
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: filybase-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - filybase-net
+
+  # ============================================================================
+  # Grafana Dashboard
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: filybase-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - filybase-net
+
+  # ============================================================================
+  # Mock Upstream Engine (Optional profile for GPU-less dev & testing)
+  # ============================================================================
+  mock-upstream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: filybase-mock-upstream
+    command: ["node", "dist/mock-upstream/server.js"]
+    profiles:
+      - dev
+      - mock
+    ports:
+      - "8001:8001"
+    networks:
+      - filybase-net
+
+networks:
+  filybase-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
+  promdata:
+  grafanadata:

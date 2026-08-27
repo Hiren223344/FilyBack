@@ -1,0 +1,125 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Total Request Rate (req/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(filybase_http_requests_total[1m])) by (model)",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "title": "Active GPU Concurrency (Slots in use)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "filybase_model_active_concurrency",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "title": "Time To First Token (TTFT p50 / p95)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, sum(rate(filybase_time_to_first_token_seconds_bucket[1m])) by (le, model))",
+          "legendFormat": "{{model}} (p50)"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(filybase_time_to_first_token_seconds_bucket[1m])) by (le, model))",
+          "legendFormat": "{{model}} (p95)"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "title": "Token Throughput (Tokens/sec)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(filybase_tokens_total[1m])) by (model, type)",
+          "legendFormat": "{{model}} - {{type}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 5,
+      "title": "Latency Distribution (p50, p90, p99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, sum(rate(filybase_http_request_duration_seconds_bucket[1m])) by (le, model))",
+          "legendFormat": "{{model}} (p50)"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.90, sum(rate(filybase_http_request_duration_seconds_bucket[1m])) by (le, model))",
+          "legendFormat": "{{model}} (p90)"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.99, sum(rate(filybase_http_request_duration_seconds_bucket[1m])) by (le, model))",
+          "legendFormat": "{{model}} (p99)"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 6,
+      "title": "Rate Limit & Admission Queue Drops",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(filybase_rate_limit_hits_total[1m])) by (type)",
+          "legendFormat": "Rate Limit: {{type}}"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(filybase_concurrency_rejections_total[1m])) by (model)",
+          "legendFormat": "Concurrency Timeout: {{model}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["filybase", "gpu", "inference", "vllm"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FilyBase GPU Gateway Overview",
+  "uid": "filybase-gateway-overview",
+  "version": 1
+}

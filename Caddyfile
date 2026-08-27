@@ -1,0 +1,32 @@
+{
+	# Global options
+	admin off
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$DOMAIN:localhost} {
+	# Enforce modern TLS
+	tls internal
+
+	# Security Headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Reverse Proxy to FilyBase Gateway Container
+	reverse_proxy gateway:8080 {
+		# Direct SSE streaming with ZERO buffering
+		flush_interval -1
+
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
