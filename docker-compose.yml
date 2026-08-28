@@ -19,7 +19,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-filybase_super_secret_jwt_key_at_least_32_chars_long_12345}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-filybase_super_secret_refresh_jwt_key_32_chars_long_67890}
       - COOKIE_SECRET=${COOKIE_SECRET:-filybase_super_secret_cookie_signing_key_32_chars_long_abcde}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080,https://app.filybase.com}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://filybase.io,https://www.filybase.io}
       - QUEUE_WAIT_MS=10000
       - QUEUE_POLL_INTERVAL_MS=50
       - DEFAULT_KEY_RPM=600
