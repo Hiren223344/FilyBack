@@ -29,13 +29,13 @@ models:
     price_per_audio_min: 0.0
     status: "live"
 
-  - id: "llama-3.3-70b"
-    display_name: "Llama 3.3 70B Instruct"
-    provider: "Meta"
+  - id: "deepseek-coder-33b"
+    display_name: "DeepSeek Coder 33B Instruct"
+    provider: "DeepSeek"
     category: "text"
     engine: "vllm"
-    upstream_url: "http://45.32.59.191:8000/v1"
-    upstream_model: "meta-llama/Llama-3.3-70B-Instruct"
+    upstream_url: "http://35.192.153.221:8000/v1"
+    upstream_model: "deepseek/deepseek-coder-33b-instruct"
     ctx_len: 131072
     max_concurrency: 32
     price_in_per_mtok: 0.10
