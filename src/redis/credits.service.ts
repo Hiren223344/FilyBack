@@ -1,5 +1,5 @@
 import { redis } from '../db/redis.js';
-import { query } from '../db/index.js';
+import { query, withTransaction } from '../db/index.js';
 import { Model } from '../types/db.types.js';
 import { CREDITS_PER_USD, CACHE_TTL } from '../config/constants.js';
 
@@ -242,6 +242,30 @@ export class CreditsService {
     } catch (err) {
       console.error(`Failed to release credit reservation ${reserveId} for account ${accountId}:`, err);
     }
+  }
+
+  /**
+   * Durably debit consumed credits from the Postgres balance and record a
+   * ledger entry. Redis is already debited by reconcileCredits; this makes the
+   * spend survive a gateway restart and keeps the billing view accurate.
+   */
+  async debitDbBalance(
+    accountId: string,
+    credits: number,
+    modelId: string,
+    requestId: string
+  ): Promise<void> {
+    if (!(credits > 0)) return;
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE balances SET credits = GREATEST(credits - $2, 0) WHERE account_id = $1`,
+        [accountId, credits]
+      );
+      await client.query(
+        `INSERT INTO ledger (account_id, delta, reason, ref) VALUES ($1, $2, $3, $4)`,
+        [accountId, -credits, `Inference usage (${modelId})`, `USAGE:${requestId}`]
+      );
+    });
   }
 
   /**

@@ -181,6 +181,12 @@ export class InferencePipelineService {
     if (result.statusCode >= 200 && result.statusCode < 300) {
       actualCredits = creditsService.calculateActualCredits(model, usage);
       await creditsService.reconcileCredits(project.account_id, reserveId, actualCredits);
+      // Persist the spend so it survives a restart and shows on the billing page.
+      await creditsService
+        .debitDbBalance(project.account_id, actualCredits, model.id, req.requestId)
+        .catch((err) => {
+          req.log.error({ err, requestId: req.requestId }, 'failed to debit DB balance');
+        });
     } else {
       // Release reservation on failure/abort
       await creditsService.releaseReservation(project.account_id, reserveId);
