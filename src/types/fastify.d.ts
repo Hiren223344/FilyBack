@@ -4,6 +4,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     requestId: string;
     startTime: number;
+    rawBody?: string;
     user?: {
       accountId: string;
       email: string;

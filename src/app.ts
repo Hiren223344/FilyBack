@@ -22,6 +22,7 @@ import { billingRoutes } from './routes/dashboard/billing.js';
 
 import { healthRoutes } from './routes/health.js';
 import { metricsRoutes } from './routes/metrics.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -99,6 +100,25 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
+  // Keep the raw JSON body around (needed to verify webhook signatures).
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (req, body, done) => {
+      req.rawBody = typeof body === 'string' ? body : body.toString('utf8');
+      if (!req.rawBody) {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(req.rawBody));
+      } catch (err) {
+        (err as Error & { statusCode?: number }).statusCode = 400;
+        done(err as Error, undefined);
+      }
+    }
+  );
+
   // Custom error handler
   app.setErrorHandler(errorHandler);
 
@@ -116,6 +136,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(keysRoutes, { prefix: '/v1' });
   await app.register(usageRoutes, { prefix: '/v1' });
   await app.register(billingRoutes, { prefix: '/v1' });
+  await app.register(webhookRoutes, { prefix: '/v1' });
 
   // Register Health and Metrics (root path)
   await app.register(healthRoutes);

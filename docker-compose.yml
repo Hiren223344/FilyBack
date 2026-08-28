@@ -20,6 +20,11 @@ services:
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-filybase_super_secret_refresh_jwt_key_32_chars_long_67890}
       - COOKIE_SECRET=${COOKIE_SECRET:-filybase_super_secret_cookie_signing_key_32_chars_long_abcde}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://filybase.io,https://www.filybase.io}
+      - APP_URL=${APP_URL:-https://filybase.io}
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-https://api.filybase.io}
+      - NOWPAYMENTS_API_KEY=${NOWPAYMENTS_API_KEY:-}
+      - NOWPAYMENTS_IPN_SECRET=${NOWPAYMENTS_IPN_SECRET:-}
+      - NOWPAYMENTS_API_URL=${NOWPAYMENTS_API_URL:-https://api.nowpayments.io}
       - QUEUE_WAIT_MS=10000
       - QUEUE_POLL_INTERVAL_MS=50
       - DEFAULT_KEY_RPM=600

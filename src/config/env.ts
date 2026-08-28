@@ -45,6 +45,15 @@ const EnvSchema = z.object({
   // Mock Engine
   MOCK_UPSTREAM_ENABLED: z.coerce.boolean().default(true),
   MOCK_UPSTREAM_PORT: z.coerce.number().default(8001),
+
+  // Public URLs (used to build payment redirect + IPN callback URLs)
+  APP_URL: z.string().default('http://localhost:3000'),
+  PUBLIC_API_URL: z.string().default('http://localhost:8080'),
+
+  // NOWPayments crypto checkout (leave blank to disable paid top-ups)
+  NOWPAYMENTS_API_KEY: z.string().default(''),
+  NOWPAYMENTS_IPN_SECRET: z.string().default(''),
+  NOWPAYMENTS_API_URL: z.string().default('https://api.nowpayments.io'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

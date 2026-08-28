@@ -4,7 +4,7 @@ import { authService } from '../../services/auth.service.js';
 import { requireJwtAuth } from '../../middleware/jwt.middleware.js';
 import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 import { query, withTransaction } from '../../db/index.js';
-import { AUTH, CREDITS_PER_USD } from '../../config/constants.js';
+import { AUTH, BILLING, CREDITS_PER_USD } from '../../config/constants.js';
 
 // Cap password length: Argon2 hashing cost scales with input size, so an
 // unbounded field is a cheap DoS vector.
@@ -71,8 +71,8 @@ export const dashboardAuthRoutes: FastifyPluginAsync = async (fastify) => {
       const proj = projRes.rows[0];
       if (!proj) throw new Error('Failed to create project');
 
-      // Seed initial free balance ($10 USD = 5,000,000 credits)
-      const initialCredits = 10 * CREDITS_PER_USD;
+      // Seed the one-time free trial balance.
+      const initialCredits = BILLING.TRIAL_CREDIT_USD * CREDITS_PER_USD;
       await client.query(
         'INSERT INTO balances (account_id, credits) VALUES ($1, $2)',
         [acc.id, initialCredits]
@@ -80,7 +80,7 @@ export const dashboardAuthRoutes: FastifyPluginAsync = async (fastify) => {
 
       await client.query(
         'INSERT INTO ledger (account_id, delta, reason, ref) VALUES ($1, $2, $3, $4)',
-        [acc.id, initialCredits, 'Welcome credit bonus', 'SIGNUP_BONUS']
+        [acc.id, initialCredits, `Free trial credit ($${BILLING.TRIAL_CREDIT_USD})`, 'SIGNUP_TRIAL']
       );
 
       // Create default demo API key for project

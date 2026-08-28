@@ -28,3 +28,11 @@ export const AUTH = {
   REFRESH_TOKEN_EXPIRY_DAYS: 30,
   REFRESH_COOKIE_NAME: 'fb_refresh_token',
 } as const;
+
+export const BILLING = {
+  // Free credits granted once, on signup.
+  TRIAL_CREDIT_USD: 5,
+  // Bounds for a paid top-up.
+  MIN_TOPUP_USD: 5,
+  MAX_TOPUP_USD: 10_000,
+} as const;
