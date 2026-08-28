@@ -40,6 +40,12 @@ export const healthRoutes: FastifyPluginAsync = async (fastify) => {
 
     const statusCode = isHealthy ? 200 : 503;
 
+    // Never expose internal upstream URLs / IPs in a publicly reachable endpoint.
+    const upstreams: Record<string, { status: string; engine: string; latencyMs: number }> = {};
+    for (const [id, info] of Object.entries(upstreamsHealth)) {
+      upstreams[id] = { status: info.status, engine: info.engine, latencyMs: info.latencyMs };
+    }
+
     reply.status(statusCode).send({
       status: isHealthy ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
@@ -48,9 +54,9 @@ export const healthRoutes: FastifyPluginAsync = async (fastify) => {
         uptime_seconds: Math.floor(process.uptime()),
         memory_usage_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       },
-      postgres: dbHealth,
-      redis: redisHealth,
-      upstreams: upstreamsHealth,
+      postgres: { status: dbHealth.status, latencyMs: dbHealth.latencyMs },
+      redis: { status: redisHealth.status, latencyMs: redisHealth.latencyMs },
+      upstreams,
     });
   });
 };

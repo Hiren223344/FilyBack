@@ -72,6 +72,23 @@ export async function seedModels(modelsFilePath?: string): Promise<void> {
     );
     console.log(`  ✓ Synced model: ${m.id} (${m.engine} -> ${m.upstream_url})`);
   }
+
+  // Prune any model (and endpoints referencing it) that is no longer declared
+  // in models.yaml, so stale seed data can't leak into /v1/models or /healthz.
+  const keepIds = parsed.models.map((m) => m.id);
+  const prunedEndpoints = await query(
+    'DELETE FROM endpoints WHERE model_id <> ALL($1::text[]) RETURNING id',
+    [keepIds]
+  );
+  const prunedModels = await query(
+    'DELETE FROM models WHERE id <> ALL($1::text[]) RETURNING id',
+    [keepIds]
+  );
+  if (prunedModels.rowCount || prunedEndpoints.rowCount) {
+    console.log(
+      `  ✓ Pruned ${prunedModels.rowCount ?? 0} stale model(s) and ${prunedEndpoints.rowCount ?? 0} orphaned endpoint(s)`
+    );
+  }
 }
 
 export async function seedInitialAdmin(): Promise<{
@@ -134,15 +151,11 @@ export async function seedInitialAdmin(): Promise<{
         [projectId, 'Default Demo Key', keyHash, 'sk-fb-live', 'cdef']
       );
 
-      // Seed endpoints
+      // Seed a starter endpoint for each currently-registered model.
       await client.query(
         `INSERT INTO endpoints (project_id, name, model_id, live)
-         VALUES 
-          ($1, 'GPT OSS 120B Chat', 'gpt-oss-120b', true),
-          ($1, 'Llama 3.3 Chat', 'llama-3.3-70b', true),
-          ($1, 'Stable Diffusion Image', 'stable-diffusion-3.5', true),
-          ($1, 'Whisper Audio', 'whisper-large-v3', true),
-          ($1, 'BGE Embeddings', 'bge-large-en-v1.5', true)
+         SELECT $1, m.display_name || ' Endpoint', m.id, true
+         FROM models m
          ON CONFLICT (project_id, name) DO NOTHING`,
         [projectId]
       );
@@ -168,7 +181,12 @@ export async function seedInitialAdmin(): Promise<{
 
 export async function runSeed(): Promise<void> {
   await seedModels();
-  await seedInitialAdmin();
+  // The demo admin account ships with a well-known API key — dev/test only.
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Skipping demo admin seed (NODE_ENV=production).');
+  } else {
+    await seedInitialAdmin();
+  }
   console.log('🎉 Seeding completed successfully.');
 }
 
