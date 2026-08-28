@@ -13,3 +13,48 @@ models:
     price_per_image: 0.0
     price_per_audio_min: 0.0
     status: "live"
+
+  - id: "llama-3.3-70b"
+    display_name: "Llama 3.3 70B Instruct"
+    provider: "Meta"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://51.49.208.179:8080/v1"
+    upstream_model: "meta-llama/Llama-3.3-70B-Instruct"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.20
+    price_out_per_mtok: 0.60
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "llama-4-maverick"
+    display_name: "Llama 4 Maverick 17B"
+    provider: "Meta"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://51.21.190.84:8080/v1"
+    upstream_model: "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.20
+    price_out_per_mtok: 0.60
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "mistral-large-2411"
+    display_name: "Mistral Large 2411"
+    provider: "Mistral"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://54.46.57.4:8000/v1"
+    upstream_model: "mistralai/Mistral-Large-Instruct-2411"
+    ctx_len: 131072
+    max_concurrency: 24
+    price_in_per_mtok: 2.00
+    price_out_per_mtok: 6.00
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
