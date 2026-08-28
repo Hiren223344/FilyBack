@@ -43,3 +43,18 @@ models:
     price_per_image: 0.0
     price_per_audio_min: 0.0
     status: "live"
+
+  - id: "deepseek-r1-70b"
+    display_name: "DeepSeek R1 70B"
+    provider: "DeepSeek"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://139.162.131.147:11434/v1"
+    upstream_model: "deepseek-r1:70b"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.18
+    price_out_per_mtok: 0.70
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
