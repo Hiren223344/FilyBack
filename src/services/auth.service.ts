@@ -232,6 +232,57 @@ export class AuthService {
   }
 
   /**
+   * Resolve a dashboard session (JWT) to an inference context: the account's
+   * first project and a usable API key row. Lets the playground / console call
+   * inference without the user pasting a raw key.
+   */
+  async resolveDashboardInferenceContext(
+    accountId: string
+  ): Promise<{ project: Project; apiKey: ApiKey } | null> {
+    const projRes = await query<Project>(
+      `SELECT id, account_id, name, created_at
+       FROM projects WHERE account_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [accountId]
+    );
+    const project = projRes.rows[0];
+    if (!project) return null;
+
+    const keyRes = await query<{
+      id: string;
+      project_id: string;
+      name: string;
+      prefix: string;
+      last4: string;
+      revoked_at: Date | null;
+      last_used_at: Date | null;
+      created_at: Date;
+    }>(
+      `SELECT id, project_id, name, prefix, last4, revoked_at, last_used_at, created_at
+       FROM api_keys
+       WHERE project_id = $1 AND revoked_at IS NULL
+       ORDER BY created_at ASC LIMIT 1`,
+      [project.id]
+    );
+
+    const row = keyRes.rows[0];
+    const apiKey: ApiKey = row
+      ? { ...row, key_hash: Buffer.alloc(0) }
+      : {
+          id: crypto.randomUUID(),
+          project_id: project.id,
+          name: 'dashboard-session',
+          key_hash: Buffer.alloc(0),
+          prefix: 'sk-fb-dash',
+          last4: 'dash',
+          revoked_at: null,
+          last_used_at: null,
+          created_at: new Date(),
+        };
+
+    return { project, apiKey };
+  }
+
+  /**
    * Invalidate cached API key (e.g. on revocation)
    */
   async invalidateKeyCache(keyHash: Buffer): Promise<void> {

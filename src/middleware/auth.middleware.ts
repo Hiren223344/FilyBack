@@ -26,11 +26,28 @@ export async function requireApiKey(
 
   const rawKey = authHeader.slice(7).trim();
 
-  // If someone passes a JWT to inference, reject with clear message
+  // Not an sk-fb- key: accept a dashboard session token (playground/console).
   if (!rawKey.startsWith(AUTH.KEY_PREFIX)) {
+    try {
+      const payload = authService.verifyAccessToken(rawKey);
+      const ctx = await authService.resolveDashboardInferenceContext(payload.accountId);
+      if (ctx) {
+        req.apiKey = ctx.apiKey;
+        req.project = ctx.project;
+        req.user = {
+          accountId: payload.accountId,
+          email: payload.email,
+          name: payload.name,
+        };
+        return;
+      }
+    } catch {
+      // Not a valid session token either — fall through to the standard error.
+    }
+
     reply.status(401).send({
       error: {
-        message: 'Incorrect API key provided. FilyBase inference keys must begin with "sk-fb-". Dashboard session tokens cannot be used for inference.',
+        message: 'Incorrect API key provided. FilyBase inference keys must begin with "sk-fb-".',
         type: 'invalid_request_error',
         param: null,
         code: 'invalid_api_key',
