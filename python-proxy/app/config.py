@@ -20,3 +20,5 @@ DASHBOARD_USERNAME = os.getenv("DASHBOARD_USERNAME", "admin")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "change-me")
 
 PROXY_API_KEY = os.getenv("PROXY_API_KEY", "").strip()
+
+ANTHROPIC_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01")

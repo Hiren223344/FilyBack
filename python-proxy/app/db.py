@@ -35,12 +35,19 @@ def init_db() -> None:
                 provider_base_url TEXT NOT NULL,
                 provider_api_key TEXT NOT NULL,
                 provider_model_id TEXT NOT NULL,
+                provider_type TEXT NOT NULL DEFAULT 'openai',
                 system_prompt TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             """
         )
+        try:
+            conn.execute(
+                "ALTER TABLE model_configs ADD COLUMN provider_type TEXT NOT NULL DEFAULT 'openai'"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -99,6 +106,7 @@ def create_model(
     provider_base_url: str,
     provider_api_key: str,
     provider_model_id: str,
+    provider_type: str,
     system_prompt: str,
 ) -> None:
     now = _now()
@@ -107,14 +115,15 @@ def create_model(
             """
             INSERT INTO model_configs
                 (model_id, provider_base_url, provider_api_key, provider_model_id,
-                 system_prompt, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 provider_type, system_prompt, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 model_id,
                 provider_base_url.rstrip("/"),
                 provider_api_key,
                 provider_model_id,
+                provider_type,
                 system_prompt,
                 now,
                 now,
@@ -128,6 +137,7 @@ def update_model(
     provider_base_url: str,
     provider_api_key: Optional[str],
     provider_model_id: str,
+    provider_type: str,
     system_prompt: str,
 ) -> None:
     with get_conn() as conn:
@@ -136,7 +146,7 @@ def update_model(
                 """
                 UPDATE model_configs
                 SET model_id = ?, provider_base_url = ?, provider_api_key = ?,
-                    provider_model_id = ?, system_prompt = ?, updated_at = ?
+                    provider_model_id = ?, provider_type = ?, system_prompt = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
@@ -144,6 +154,7 @@ def update_model(
                     provider_base_url.rstrip("/"),
                     provider_api_key,
                     provider_model_id,
+                    provider_type,
                     system_prompt,
                     _now(),
                     model_pk_id,
@@ -154,13 +165,14 @@ def update_model(
                 """
                 UPDATE model_configs
                 SET model_id = ?, provider_base_url = ?,
-                    provider_model_id = ?, system_prompt = ?, updated_at = ?
+                    provider_model_id = ?, provider_type = ?, system_prompt = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     model_id,
                     provider_base_url.rstrip("/"),
                     provider_model_id,
+                    provider_type,
                     system_prompt,
                     _now(),
                     model_pk_id,

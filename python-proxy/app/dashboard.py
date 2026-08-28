@@ -49,21 +49,28 @@ def edit_form(request: Request, pk_id: int):
     )
 
 
+_VALID_PROVIDER_TYPES = {"openai", "anthropic"}
+
+
 @router.post("/models")
 def create_model(
     model_id: str = Form(...),
     provider_base_url: str = Form(...),
     provider_api_key: str = Form(...),
     provider_model_id: str = Form(...),
+    provider_type: str = Form("openai"),
     system_prompt: str = Form(""),
 ):
     if db.get_model_by_model_id(model_id.strip()) is not None:
         raise HTTPException(status_code=400, detail=f"Model id '{model_id}' already exists")
+    if provider_type not in _VALID_PROVIDER_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid provider_type '{provider_type}'")
     db.create_model(
         model_id.strip(),
         provider_base_url.strip(),
         provider_api_key.strip(),
         provider_model_id.strip(),
+        provider_type,
         system_prompt,
     )
     return RedirectResponse(url="/", status_code=303)
@@ -76,16 +83,20 @@ def update_model(
     provider_base_url: str = Form(...),
     provider_api_key: str = Form(""),
     provider_model_id: str = Form(...),
+    provider_type: str = Form("openai"),
     system_prompt: str = Form(""),
 ):
     if db.get_model(pk_id) is None:
         raise HTTPException(status_code=404, detail="Model not found")
+    if provider_type not in _VALID_PROVIDER_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid provider_type '{provider_type}'")
     db.update_model(
         pk_id,
         model_id.strip(),
         provider_base_url.strip(),
         provider_api_key.strip() or None,
         provider_model_id.strip(),
+        provider_type,
         system_prompt,
     )
     return RedirectResponse(url="/", status_code=303)

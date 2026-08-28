@@ -43,6 +43,7 @@
     <thead>
       <tr>
         <th>Model ID (used by callers)</th>
+        <th>Provider</th>
         <th>Provider base URL</th>
         <th>Provider model ID</th>
         <th>API key</th>
@@ -54,6 +55,7 @@
       {% for row in models %}
       <tr>
         <td><code>{{ row.model_id }}</code></td>
+        <td>{{ row.provider_type }}</td>
         <td>{{ row.provider_base_url }}</td>
         <td><code>{{ row.provider_model_id }}</code></td>
         <td><code>{{ mask(row.provider_api_key) }}</code></td>
@@ -67,7 +69,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">No models configured yet.</td></tr>
+      <tr><td colspan="7" class="muted">No models configured yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -79,13 +81,23 @@
     <input type="text" id="model_id" name="model_id" required placeholder="my-gpt4"
            value="{{ edit_row.model_id if edit_row else '' }}">
 
+    <label for="provider_type">Provider API format</label>
+    <select id="provider_type" name="provider_type">
+      <option value="openai" {{ "selected" if not edit_row or edit_row.provider_type == "openai" else "" }}>
+        OpenAI-compatible (/chat/completions, Bearer auth)
+      </option>
+      <option value="anthropic" {{ "selected" if edit_row and edit_row.provider_type == "anthropic" else "" }}>
+        Anthropic (/messages, x-api-key auth)
+      </option>
+    </select>
+
     <label for="provider_base_url">Provider base URL</label>
     <input type="text" id="provider_base_url" name="provider_base_url" required
-           placeholder="https://api.openai.com/v1"
+           placeholder="https://api.openai.com/v1 or https://api.anthropic.com/v1"
            value="{{ edit_row.provider_base_url if edit_row else '' }}">
 
     <label for="provider_model_id">Provider's model ID</label>
-    <input type="text" id="provider_model_id" name="provider_model_id" required placeholder="gpt-4o"
+    <input type="text" id="provider_model_id" name="provider_model_id" required placeholder="gpt-4o or claude-opus-5"
            value="{{ edit_row.provider_model_id if edit_row else '' }}">
 
     <label for="provider_api_key">Provider API key {% if edit_row %}<span class="muted">(leave blank to keep current)</span>{% endif %}</label>
