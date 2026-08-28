@@ -156,6 +156,43 @@ async def messages(request: Request) -> Any:
     return await _proxy_json(url, headers, upstream_payload)
 
 
+@router.post("/v1/messages/count_tokens")
+async def count_tokens(request: Request) -> Any:
+    """Anthropic's token-counting endpoint. Claude Code calls this to manage its
+    context budget, so a 404 here breaks it even though no completion is generated."""
+    try:
+        payload = await request.json()
+    except json.JSONDecodeError:
+        return _error("Request body must be valid JSON", 400, "invalid_json")
+
+    config_row, err = _resolve_model(payload.get("model"))
+    if err:
+        return err
+
+    caller_system_prompt = ac.flatten_content_to_text(payload.get("system", ""))
+    combined_system_prompt = _combine_system_prompt(
+        db.get_base_system_prompt(), config_row["system_prompt"], caller_system_prompt
+    )
+
+    if config_row["provider_type"] == "anthropic":
+        base = config_row["provider_base_url"]
+        url = f"{base}/messages/count_tokens"
+        headers = {
+            "x-api-key": config_row["provider_api_key"],
+            "anthropic-version": config.ANTHROPIC_VERSION,
+            "Content-Type": "application/json",
+        }
+        upstream_payload = {**payload, "model": config_row["provider_model_id"]}
+        if combined_system_prompt.strip():
+            upstream_payload["system"] = combined_system_prompt
+        else:
+            upstream_payload.pop("system", None)
+        return await _proxy_json(url, headers, upstream_payload)
+
+    # OpenAI-shaped providers have no equivalent endpoint; estimate locally.
+    return JSONResponse(content={"input_tokens": ac.estimate_token_count(payload, combined_system_prompt)})
+
+
 # ---------------------------------------------------------------------------
 # Upstream call helpers
 # ---------------------------------------------------------------------------

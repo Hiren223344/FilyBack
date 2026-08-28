@@ -39,6 +39,15 @@ def sse(event: str, data: dict[str, Any]) -> bytes:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
 
 
+def estimate_token_count(payload: dict[str, Any], system_prompt: str) -> int:
+    """Rough char/4 estimate, used only for providers with no native token-counting
+    endpoint (e.g. OpenAI). Good enough for Claude Code's context-budget checks."""
+    text = system_prompt
+    for m in payload.get("messages", []):
+        text += flatten_content_to_text(m.get("content", ""))
+    return max(1, round(len(text) / 4))
+
+
 # ---------------------------------------------------------------------------
 # OpenAI-shaped request -> Anthropic-shaped request (used when the caller
 # speaks OpenAI's /v1/chat/completions but the configured provider is Anthropic)

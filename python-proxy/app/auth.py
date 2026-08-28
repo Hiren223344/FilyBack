@@ -25,8 +25,12 @@ def require_dashboard_auth(
 def require_proxy_auth(request: Request) -> None:
     if not config.PROXY_API_KEY:
         return
-    header = request.headers.get("authorization", "")
-    token = header[7:] if header.lower().startswith("bearer ") else ""
+    # Anthropic SDKs (incl. Claude Code) send `x-api-key`; OpenAI SDKs send
+    # `Authorization: Bearer`. Accept either so both client families work.
+    api_key_header = request.headers.get("x-api-key", "")
+    auth_header = request.headers.get("authorization", "")
+    bearer_token = auth_header[7:] if auth_header.lower().startswith("bearer ") else ""
+    token = api_key_header or bearer_token
     if not secrets.compare_digest(token, config.PROXY_API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

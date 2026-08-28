@@ -52,6 +52,37 @@ resp = client.messages.create(
 )
 ```
 
+## Claude Code support
+
+Point the Claude Code CLI itself at this proxy. It always speaks the
+Anthropic Messages API, so it works whether the model behind it is
+configured as an `anthropic` or `openai` provider — meaning you can run
+Claude Code against, say, a GPT-4o backend through this proxy.
+
+1. Add a model entry whose **Model ID** matches the model name Claude Code
+   will send (its current default main/small-fast model names — check
+   `claude --version`'s docs, or just override them, see below).
+2. Point Claude Code at the proxy:
+
+   ```bash
+   export ANTHROPIC_BASE_URL=http://localhost:9000
+   export ANTHROPIC_API_KEY=<PROXY_API_KEY>       # sent as x-api-key
+   # or: export ANTHROPIC_AUTH_TOKEN=<PROXY_API_KEY>  # sent as Authorization: Bearer
+
+   # Make Claude Code request exactly the Model IDs you configured:
+   export ANTHROPIC_MODEL=my-claude-model
+   export ANTHROPIC_SMALL_FAST_MODEL=my-fast-model
+
+   claude
+   ```
+
+`ANTHROPIC_BASE_URL` has no `/v1` suffix — the SDK appends `/v1/messages`
+itself, matching this proxy's routes. The proxy also implements
+`/v1/messages/count_tokens` (Claude Code calls this to manage its context
+budget): for `anthropic`-type providers it's forwarded upstream, for
+`openai`-type providers it's a local character-based estimate since OpenAI
+has no equivalent endpoint.
+
 ## Setup
 
 ```bash
