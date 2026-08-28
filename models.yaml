@@ -28,3 +28,33 @@ models:
     price_per_image: 0.0
     price_per_audio_min: 0.0
     status: "live"
+
+  - id: "llama-3.3-70b"
+    display_name: "Llama 3.3 70B Instruct"
+    provider: "Meta"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://45.32.59.191:8000/v1"
+    upstream_model: "meta-llama/Llama-3.3-70B-Instruct"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.10
+    price_out_per_mtok: 0.30
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "deepseek-r1-70b"
+    display_name: "DeepSeek R1 70B"
+    provider: "DeepSeek"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://139.162.131.147:11434/v1"
+    upstream_model: "deepseek-r1:70b"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.18
+    price_out_per_mtok: 0.70
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
