@@ -73,3 +73,33 @@ models:
     price_per_image: 0.0
     price_per_audio_min: 0.0
     status: "live"
+
+  - id: "qwen3.6-35b-a3b"
+    display_name: "Qwen3.6 35B A3B"
+    provider: "Qwen"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://143.110.237.11:8000/v1"
+    upstream_model: "Qwen3.6-35B-A3B-UD-Q6_K.gguf"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.08
+    price_out_per_mtok: 0.87
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
+
+  - id: "qwen3-omni"
+    display_name: "Qwen3 Omni"
+    provider: "Qwen"
+    category: "text"
+    engine: "vllm"
+    upstream_url: "http://54.116.233.123:8000/v1"
+    upstream_model: "qwen3-omni"
+    ctx_len: 131072
+    max_concurrency: 32
+    price_in_per_mtok: 0.20
+    price_out_per_mtok: 0.85
+    price_per_image: 0.0
+    price_per_audio_min: 0.0
+    status: "live"
