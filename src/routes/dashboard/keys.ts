@@ -111,9 +111,18 @@ export const keysRoutes: FastifyPluginAsync = async (fastify) => {
     const user = req.user!;
     const { id } = req.params as { id: string };
 
-    const findKey = await query<{ key_hash: Buffer }>(
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      reply.status(400).send({
+        statusCode: 400,
+        error: 'Validation Error',
+        message: 'Invalid API key id',
+      });
+      return;
+    }
+
+    const findKey = await query<{ key_hash: Buffer; revoked_at: Date | null }>(
       `
-      SELECT k.key_hash
+      SELECT k.key_hash, k.revoked_at
       FROM api_keys k
       JOIN projects p ON p.id = k.project_id
       WHERE k.id = $1 AND p.account_id = $2
@@ -133,9 +142,22 @@ export const keysRoutes: FastifyPluginAsync = async (fastify) => {
 
     const keyHash = findKey.rows[0]!.key_hash;
 
+    if (findKey.rows[0]!.revoked_at !== null) {
+      // Already revoked — idempotent success, but skip the write.
+      await authService.invalidateKeyCache(keyHash);
+      reply.status(204).send();
+      return;
+    }
+
+    // Ownership re-checked in the WHERE clause as defense in depth.
     await query(
-      'UPDATE api_keys SET revoked_at = NOW() WHERE id = $1',
-      [id]
+      `
+      UPDATE api_keys k
+      SET revoked_at = NOW()
+      FROM projects p
+      WHERE k.id = $1 AND k.project_id = p.id AND p.account_id = $2;
+      `,
+      [id, user.accountId]
     );
 
     // Invalidate Redis cache

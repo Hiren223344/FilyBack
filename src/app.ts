@@ -36,6 +36,20 @@ export async function buildApp(): Promise<FastifyInstance> {
     req.startTime = Date.now();
   });
 
+  // Baseline security headers (helmet-equivalent, no extra dependency).
+  app.addHook('onSend', async (req, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Cross-Origin-Resource-Policy', 'same-site');
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    reply.removeHeader('X-Powered-By');
+    if (env.NODE_ENV === 'production') {
+      reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    return payload;
+  });
+
   // CORS configuration
   const allowedOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim());
   await app.register(cors, {

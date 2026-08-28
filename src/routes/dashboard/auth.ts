@@ -2,25 +2,34 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { authService } from '../../services/auth.service.js';
 import { requireJwtAuth } from '../../middleware/jwt.middleware.js';
+import { rateLimit } from '../../middleware/rate-limit.middleware.js';
 import { query, withTransaction } from '../../db/index.js';
 import { AUTH, CREDITS_PER_USD } from '../../config/constants.js';
 
+// Cap password length: Argon2 hashing cost scales with input size, so an
+// unbounded field is a cheap DoS vector.
 const SignupSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters long'),
+  email: z.string().email('Invalid email address').max(254),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .max(200, 'Password must be at most 200 characters long'),
 });
 
 const LoginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('Invalid email address').max(254),
+  password: z.string().min(1, 'Password is required').max(200),
 });
+
+const signupLimiter = rateLimit({ scope: 'auth:signup', max: 5, windowMs: 60 * 60 * 1000 });
+const loginLimiter = rateLimit({ scope: 'auth:login', max: 10, windowMs: 15 * 60 * 1000 });
 
 export const dashboardAuthRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * POST /v1/auth/signup
    */
-  fastify.post('/auth/signup', async (req, reply) => {
+  fastify.post('/auth/signup', { preHandler: [signupLimiter] }, async (req, reply) => {
     const parseResult = SignupSchema.safeParse(req.body);
     if (!parseResult.success) {
       reply.status(400).send({
@@ -118,7 +127,7 @@ export const dashboardAuthRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * POST /v1/auth/login
    */
-  fastify.post('/auth/login', async (req, reply) => {
+  fastify.post('/auth/login', { preHandler: [loginLimiter] }, async (req, reply) => {
     const parseResult = LoginSchema.safeParse(req.body);
     if (!parseResult.success) {
       reply.status(400).send({

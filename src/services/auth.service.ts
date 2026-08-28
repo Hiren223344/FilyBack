@@ -78,6 +78,7 @@ export class AuthService {
    */
   verifyAccessToken(token: string): UserPayload {
     return jwt.verify(token, env.JWT_SECRET, {
+      algorithms: ['HS256'],
       issuer: 'filybase-gateway',
       audience: 'filybase-dashboard',
     }) as UserPayload;
@@ -88,6 +89,7 @@ export class AuthService {
    */
   verifyRefreshToken(token: string): UserPayload {
     return jwt.verify(token, env.JWT_REFRESH_SECRET, {
+      algorithms: ['HS256'],
       issuer: 'filybase-gateway',
       audience: 'filybase-dashboard-refresh',
     }) as UserPayload;

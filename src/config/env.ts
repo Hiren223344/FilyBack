@@ -49,13 +49,39 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
+// Known insecure development defaults that must never reach production.
+const INSECURE_DEFAULTS = new Set<string>([
+  'filybase_super_secret_jwt_key_at_least_32_chars_long_12345',
+  'filybase_super_secret_refresh_jwt_key_32_chars_long_67890',
+  'filybase_super_secret_cookie_signing_key_32_chars_long_abcde',
+]);
+
 export function loadEnv(): Env {
   const result = EnvSchema.safeParse(process.env);
   if (!result.success) {
     console.error('❌ Invalid environment variables:', result.error.flatten().fieldErrors);
     throw new Error('Environment configuration validation failed');
   }
-  return result.data;
+  const data = result.data;
+
+  if (data.NODE_ENV === 'production') {
+    const offenders: string[] = [];
+    if (INSECURE_DEFAULTS.has(data.JWT_SECRET)) offenders.push('JWT_SECRET');
+    if (INSECURE_DEFAULTS.has(data.JWT_REFRESH_SECRET)) offenders.push('JWT_REFRESH_SECRET');
+    if (INSECURE_DEFAULTS.has(data.COOKIE_SECRET)) offenders.push('COOKIE_SECRET');
+    if (data.JWT_SECRET === data.JWT_REFRESH_SECRET) offenders.push('JWT_SECRET must differ from JWT_REFRESH_SECRET');
+    if (data.CORS_ORIGINS.split(',').map((o) => o.trim()).includes('*')) {
+      offenders.push('CORS_ORIGINS may not be "*" in production (credentials are enabled)');
+    }
+    if (offenders.length > 0) {
+      throw new Error(
+        `Refusing to start in production with insecure configuration: ${offenders.join(', ')}. ` +
+          'Generate strong secrets, e.g. `openssl rand -base64 48`.'
+      );
+    }
+  }
+
+  return data;
 }
 
 export const env = loadEnv();
