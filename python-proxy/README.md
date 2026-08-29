@@ -33,9 +33,16 @@ caller's format and the provider's format don't match, e.g.:
   `anthropic` → request/response translated to/from Anthropic's Messages API
   shape.
 
-Only text content is translated (no tool-use/image blocks) — matching
-formats (OpenAI↔OpenAI, Anthropic↔Anthropic) are passed straight through
-untouched.
+Text content and tool use (tool calls + tool results) are translated in both
+directions — this is what makes agentic clients like Claude Code work through
+an OpenAI-type provider, since they rely almost entirely on tool calling.
+Image content blocks are not translated. Matching formats (OpenAI↔OpenAI,
+Anthropic↔Anthropic) are passed straight through untouched, tools included.
+
+As a bonus, raw EOS/special tokens some OpenAI-compatible inference servers
+leak into content when a model's stop sequence isn't configured server-side
+(e.g. DeepSeek's `<｜end▁of▁sentence｜>`) are stripped from translated
+responses.
 
 ```python
 import anthropic
