@@ -35,6 +35,97 @@ def _clean_text(text: str) -> str:
     return _LEAKED_SPECIAL_TOKENS.sub("", text) if text else text
 
 
+# Some reasoning models (DeepSeek-R1 style) emit a <think>...</think> block before the
+# real answer. Some inference servers inject "<think>\n" as an assistant-turn prefix
+# that isn't echoed back, so the response can start already "inside" a think block —
+# only a bare </think> appears, with no matching opening tag. Strip both cases.
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_DANGLING_THINK_CLOSE = re.compile(r"^.*?</think>", re.DOTALL | re.IGNORECASE)
+_MAX_THINK_TAG_LEN = len("</think>")
+
+
+def _strip_thinking(text: str) -> str:
+    if not text:
+        return text
+    text = _THINK_BLOCK.sub("", text)
+    if "</think>" in text.lower():
+        text = _DANGLING_THINK_CLOSE.sub("", text)
+    return text.strip()
+
+
+# Without a visible <think> open tag, there's no way to know in real time whether
+# in-progress text is reasoning or a real answer until </think> actually shows up (or
+# doesn't). This bounds how long we'll withhold output at the very start of a stream
+# to check for a dangling close before giving up and treating it as normal text — a
+# heuristic, not a guarantee: a longer un-tagged reasoning preamble than this won't be
+# fully caught, and short normal replies are held back in one lump up to this length
+# instead of streaming char-by-char.
+_UNDECIDED_HOLD_LIMIT = 300
+
+
+class _ThinkTagStripper:
+    """Streaming counterpart to _strip_thinking: filters <think>...</think> (including
+    the dangling-close-with-no-open case) out of a sequence of text deltas, holding back
+    a small tail so a tag split across chunk boundaries is still caught."""
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._in_think = False
+        self._decided = False  # False until we've resolved whether this stream opens
+        # with a dangling (open-tag-less) think block, or gone past the hold limit.
+
+    def feed(self, text: str) -> str:
+        if not text:
+            return ""
+        self._buf += text
+        out = []
+        while True:
+            if self._in_think:
+                idx = self._buf.find("</think>")
+                if idx == -1:
+                    break
+                self._buf = self._buf[idx + len("</think>"):].lstrip()
+                self._in_think = False
+                self._decided = True
+                continue
+            open_idx = self._buf.find("<think>")
+            close_idx = self._buf.find("</think>")
+            if open_idx != -1 and (close_idx == -1 or open_idx < close_idx):
+                out.append(self._buf[:open_idx])
+                self._buf = self._buf[open_idx + len("<think>"):]
+                self._in_think = True
+                self._decided = True
+                continue
+            if close_idx != -1:
+                # bare </think> with no preceding <think>: everything before it
+                # (held, not yet emitted) was thinking content too.
+                self._buf = self._buf[close_idx + len("</think>"):].lstrip()
+                self._decided = True
+                continue
+            break
+
+        if self._in_think:
+            return "".join(out)
+
+        if not self._decided:
+            if len(self._buf) > _UNDECIDED_HOLD_LIMIT:
+                self._decided = True
+                out.append(self._buf)
+                self._buf = ""
+            return "".join(out)
+
+        if self._buf:
+            safe_len = max(0, len(self._buf) - (_MAX_THINK_TAG_LEN - 1))
+            out.append(self._buf[:safe_len])
+            self._buf = self._buf[safe_len:]
+        return "".join(out)
+
+    def flush(self) -> str:
+        remaining = "" if self._in_think else self._buf
+        self._buf = ""
+        return remaining
+
+
 def flatten_content_to_text(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -160,7 +251,7 @@ def anthropic_response_to_openai(data: dict[str, Any], requested_model_id: str) 
     tool_calls = []
     for b in data.get("content", []):
         if b.get("type") == "text":
-            text_parts.append(_clean_text(b.get("text", "")))
+            text_parts.append(_clean_text(_strip_thinking(b.get("text", ""))))
         elif b.get("type") == "tool_use":
             tool_calls.append(
                 {
@@ -199,6 +290,7 @@ async def anthropic_sse_to_openai_chunks(
     # anthropic content-block index -> openai tool_calls index (0-based, tool calls only)
     tool_block_openai_index: dict[int, int] = {}
     next_tool_index = 0
+    stripper = _ThinkTagStripper()
 
     async for line in lines:
         if line.startswith("event:"):
@@ -248,13 +340,15 @@ async def anthropic_sse_to_openai_chunks(
             delta = data.get("delta", {})
             idx = data.get("index", 0)
             if delta.get("type") == "text_delta" and delta.get("text"):
-                chunk = {
-                    "id": chunk_id,
-                    "object": "chat.completion.chunk",
-                    "model": requested_model_id,
-                    "choices": [{"index": 0, "delta": {"content": _clean_text(delta["text"])}, "finish_reason": None}],
-                }
-                yield f"data: {json.dumps(chunk)}\n\n".encode()
+                visible = _clean_text(stripper.feed(delta["text"]))
+                if visible:
+                    chunk = {
+                        "id": chunk_id,
+                        "object": "chat.completion.chunk",
+                        "model": requested_model_id,
+                        "choices": [{"index": 0, "delta": {"content": visible}, "finish_reason": None}],
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n".encode()
             elif delta.get("type") == "input_json_delta" and idx in tool_block_openai_index:
                 chunk = {
                     "id": chunk_id,
@@ -271,6 +365,17 @@ async def anthropic_sse_to_openai_chunks(
                             "finish_reason": None,
                         }
                     ],
+                }
+                yield f"data: {json.dumps(chunk)}\n\n".encode()
+
+        elif event_type == "content_block_stop":
+            visible = _clean_text(stripper.flush())
+            if visible:
+                chunk = {
+                    "id": chunk_id,
+                    "object": "chat.completion.chunk",
+                    "model": requested_model_id,
+                    "choices": [{"index": 0, "delta": {"content": visible}, "finish_reason": None}],
                 }
                 yield f"data: {json.dumps(chunk)}\n\n".encode()
 
@@ -404,7 +509,9 @@ def openai_response_to_anthropic(data: dict[str, Any], requested_model_id: str) 
     content_blocks: list[dict[str, Any]] = []
     text = message.get("content")
     if text:
-        content_blocks.append({"type": "text", "text": _clean_text(text)})
+        cleaned = _clean_text(_strip_thinking(text))
+        if cleaned:
+            content_blocks.append({"type": "text", "text": cleaned})
     for tc in message.get("tool_calls") or []:
         fn = tc.get("function", {})
         content_blocks.append(
@@ -459,6 +566,7 @@ async def openai_sse_to_anthropic_events(
     tool_blocks: dict[int, dict[str, Any]] = {}
     next_block_index = 0
     finish_reason = "stop"
+    stripper = _ThinkTagStripper()
 
     async for line in lines:
         if not line.startswith("data:"):
@@ -475,17 +583,19 @@ async def openai_sse_to_anthropic_events(
 
         text = delta.get("content")
         if text:
-            if text_block_index is None:
-                text_block_index = next_block_index
-                next_block_index += 1
+            visible = _clean_text(stripper.feed(text))
+            if visible:
+                if text_block_index is None:
+                    text_block_index = next_block_index
+                    next_block_index += 1
+                    yield sse(
+                        "content_block_start",
+                        {"type": "content_block_start", "index": text_block_index, "content_block": {"type": "text", "text": ""}},
+                    )
                 yield sse(
-                    "content_block_start",
-                    {"type": "content_block_start", "index": text_block_index, "content_block": {"type": "text", "text": ""}},
+                    "content_block_delta",
+                    {"type": "content_block_delta", "index": text_block_index, "delta": {"type": "text_delta", "text": visible}},
                 )
-            yield sse(
-                "content_block_delta",
-                {"type": "content_block_delta", "index": text_block_index, "delta": {"type": "text_delta", "text": _clean_text(text)}},
-            )
 
         for tc in delta.get("tool_calls") or []:
             oi = tc.get("index", 0)
@@ -533,6 +643,20 @@ async def openai_sse_to_anthropic_events(
 
         if choice.get("finish_reason"):
             finish_reason = choice["finish_reason"]
+
+    remainder = _clean_text(stripper.flush())
+    if remainder:
+        if text_block_index is None:
+            text_block_index = next_block_index
+            next_block_index += 1
+            yield sse(
+                "content_block_start",
+                {"type": "content_block_start", "index": text_block_index, "content_block": {"type": "text", "text": ""}},
+            )
+        yield sse(
+            "content_block_delta",
+            {"type": "content_block_delta", "index": text_block_index, "delta": {"type": "text_delta", "text": remainder}},
+        )
 
     if text_block_index is not None:
         yield sse("content_block_stop", {"type": "content_block_stop", "index": text_block_index})

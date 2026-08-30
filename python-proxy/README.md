@@ -39,10 +39,21 @@ an OpenAI-type provider, since they rely almost entirely on tool calling.
 Image content blocks are not translated. Matching formats (OpenAI↔OpenAI,
 Anthropic↔Anthropic) are passed straight through untouched, tools included.
 
-As a bonus, raw EOS/special tokens some OpenAI-compatible inference servers
-leak into content when a model's stop sequence isn't configured server-side
-(e.g. DeepSeek's `<｜end▁of▁sentence｜>`) are stripped from translated
-responses.
+As a bonus, translated responses also get cleaned up:
+
+- Raw EOS/special tokens some OpenAI-compatible inference servers leak into
+  content when a model's stop sequence isn't configured server-side (e.g.
+  DeepSeek's `<｜end▁of▁sentence｜>`) are stripped.
+- `<think>...</think>` reasoning blocks from DeepSeek-R1-style models are
+  stripped from the visible answer — including the case where a server
+  injects `<think>` into the prompt template and only echoes back a bare
+  `</think>` with no matching open tag. In streaming responses this is a
+  best-effort heuristic: the first ~300 characters of a response are held
+  back briefly to check for a dangling `</think>` before being treated as
+  normal text, so a much longer un-tagged reasoning preamble won't be fully
+  caught, and short replies may arrive in one chunk instead of token-by-token
+  for those ~300 characters. `<think>` blocks with a visible open tag (the
+  common case) are always fully stripped regardless of length.
 
 ```python
 import anthropic
