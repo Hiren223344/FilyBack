@@ -99,14 +99,15 @@ async def chat_completions(request: Request) -> Any:
             return await _proxy_stream_translated(url, headers, upstream_payload, ac.anthropic_sse_to_openai_chunks, requested_model)
         return await _proxy_json(url, headers, upstream_payload, lambda data: ac.anthropic_response_to_openai(data, requested_model))
 
-    # OpenAI-shaped provider: merge system prompt back into messages, swap model, passthrough
+    # OpenAI-shaped provider: merge system prompt back into messages, swap model.
+    # Same format on both sides, so no shape translation — just clean text content.
     non_system = [m for m in messages if m.get("role") != "system"]
     new_messages = [{"role": "system", "content": combined_system_prompt}, *non_system] if combined_system_prompt.strip() else non_system
     upstream_payload = {**payload, "model": config_row["provider_model_id"], "messages": new_messages}
 
     if is_stream:
-        return await _proxy_stream_raw(url, headers, upstream_payload)
-    return await _proxy_json(url, headers, upstream_payload)
+        return await _proxy_stream_translated(url, headers, upstream_payload, ac.clean_openai_sse_stream, requested_model)
+    return await _proxy_json(url, headers, upstream_payload, ac.clean_openai_response)
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,8 @@ async def messages(request: Request) -> Any:
             return await _proxy_stream_translated(url, headers, upstream_payload, ac.openai_sse_to_anthropic_events, requested_model)
         return await _proxy_json(url, headers, upstream_payload, lambda data: ac.openai_response_to_anthropic(data, requested_model))
 
-    # Anthropic-shaped provider: passthrough with model swap + merged system prompt
+    # Anthropic-shaped provider: model swap + merged system prompt, same format on
+    # both sides so no shape translation — just clean text content.
     upstream_payload = {**payload, "model": config_row["provider_model_id"]}
     if combined_system_prompt.strip():
         upstream_payload["system"] = combined_system_prompt
@@ -152,8 +154,8 @@ async def messages(request: Request) -> Any:
         upstream_payload.pop("system", None)
 
     if is_stream:
-        return await _proxy_stream_raw(url, headers, upstream_payload)
-    return await _proxy_json(url, headers, upstream_payload)
+        return await _proxy_stream_translated(url, headers, upstream_payload, ac.clean_anthropic_sse_stream, requested_model)
+    return await _proxy_json(url, headers, upstream_payload, ac.clean_anthropic_response)
 
 
 @router.post("/v1/messages/count_tokens")
@@ -212,28 +214,6 @@ async def _proxy_json(
     if translate is not None and resp.status_code < 400:
         body = translate(body)
     return JSONResponse(status_code=resp.status_code, content=body)
-
-
-async def _proxy_stream_raw(url: str, headers: dict[str, str], payload: dict[str, Any]) -> StreamingResponse:
-    client = httpx.AsyncClient(timeout=None)
-
-    async def event_gen():
-        try:
-            async with client.stream("POST", url, headers=headers, json=payload) as resp:
-                if resp.status_code >= 400:
-                    body = await resp.aread()
-                    yield f"data: {body.decode(errors='replace')}\n\n".encode()
-                    return
-                async for chunk in resp.aiter_raw():
-                    if chunk:
-                        yield chunk
-        except httpx.RequestError as exc:
-            err = json.dumps({"error": {"message": f"Failed to reach upstream provider: {exc}", "type": "upstream_unreachable"}})
-            yield f"data: {err}\n\n".encode()
-        finally:
-            await client.aclose()
-
-    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 async def _proxy_stream_translated(

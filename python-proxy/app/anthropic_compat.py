@@ -673,3 +673,87 @@ async def openai_sse_to_anthropic_events(
         },
     )
     yield sse("message_stop", {"type": "message_stop"})
+
+
+# ---------------------------------------------------------------------------
+# Same-format passthrough with cleaning (caller and provider already agree on
+# shape — e.g. an OpenAI-SDK-style client hitting an openai-type provider — so no
+# translation is needed, only EOS-token/<think> cleanup of text content).
+# ---------------------------------------------------------------------------
+
+def clean_openai_response(data: dict[str, Any]) -> dict[str, Any]:
+    for choice in data.get("choices") or []:
+        message = choice.get("message") or {}
+        if message.get("content"):
+            message["content"] = _clean_text(_strip_thinking(message["content"])) or None
+    return data
+
+
+async def clean_openai_sse_stream(lines: AsyncIterator[str], _requested_model_id: str) -> AsyncIterator[bytes]:
+    stripper = _ThinkTagStripper()
+    async for line in lines:
+        if not line.startswith("data:"):
+            continue
+        data_str = line[len("data:"):].strip()
+        if not data_str:
+            continue
+        if data_str == "[DONE]":
+            remainder = _clean_text(stripper.flush())
+            if remainder:
+                trailer = {"choices": [{"index": 0, "delta": {"content": remainder}, "finish_reason": None}]}
+                yield f"data: {json.dumps(trailer)}\n\n".encode()
+            yield b"data: [DONE]\n\n"
+            continue
+        try:
+            data = json.loads(data_str)
+        except json.JSONDecodeError:
+            yield f"data: {data_str}\n\n".encode()
+            continue
+        for choice in data.get("choices") or []:
+            delta = choice.get("delta") or {}
+            if delta.get("content"):
+                delta["content"] = _clean_text(stripper.feed(delta["content"]))
+        yield f"data: {json.dumps(data)}\n\n".encode()
+
+
+def clean_anthropic_response(data: dict[str, Any]) -> dict[str, Any]:
+    for block in data.get("content") or []:
+        if block.get("type") == "text":
+            block["text"] = _clean_text(_strip_thinking(block.get("text", "")))
+    return data
+
+
+async def clean_anthropic_sse_stream(lines: AsyncIterator[str], _requested_model_id: str) -> AsyncIterator[bytes]:
+    stripper = _ThinkTagStripper()
+    event_type = None
+    async for line in lines:
+        if line.startswith("event:"):
+            event_type = line[len("event:"):].strip()
+            continue
+        if not line.startswith("data:"):
+            continue
+        data_str = line[len("data:"):].strip()
+        if not data_str:
+            continue
+        try:
+            data = json.loads(data_str)
+        except json.JSONDecodeError:
+            continue
+
+        if event_type == "content_block_delta" and data.get("delta", {}).get("type") == "text_delta":
+            data["delta"]["text"] = _clean_text(stripper.feed(data["delta"].get("text", "")))
+            yield sse(event_type, data)
+            continue
+
+        if event_type == "content_block_stop":
+            remainder = _clean_text(stripper.flush())
+            if remainder:
+                idx = data.get("index", 0)
+                yield sse(
+                    "content_block_delta",
+                    {"type": "content_block_delta", "index": idx, "delta": {"type": "text_delta", "text": remainder}},
+                )
+            yield sse(event_type, data)
+            continue
+
+        yield sse(event_type, data)

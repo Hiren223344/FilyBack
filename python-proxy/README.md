@@ -37,7 +37,8 @@ Text content and tool use (tool calls + tool results) are translated in both
 directions — this is what makes agentic clients like Claude Code work through
 an OpenAI-type provider, since they rely almost entirely on tool calling.
 Image content blocks are not translated. Matching formats (OpenAI↔OpenAI,
-Anthropic↔Anthropic) are passed straight through untouched, tools included.
+Anthropic↔Anthropic) skip shape translation, but still get the same text
+cleanup below (EOS-token/`<think>` stripping) applied.
 
 As a bonus, translated responses also get cleaned up:
 
