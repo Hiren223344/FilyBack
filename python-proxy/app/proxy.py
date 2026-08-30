@@ -107,7 +107,7 @@ async def chat_completions(request: Request) -> Any:
 
     if is_stream:
         return await _proxy_stream_translated(url, headers, upstream_payload, ac.clean_openai_sse_stream, requested_model)
-    return await _proxy_json(url, headers, upstream_payload, ac.clean_openai_response)
+    return await _proxy_json(url, headers, upstream_payload, lambda data: ac.clean_openai_response(data, requested_model))
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +155,7 @@ async def messages(request: Request) -> Any:
 
     if is_stream:
         return await _proxy_stream_translated(url, headers, upstream_payload, ac.clean_anthropic_sse_stream, requested_model)
-    return await _proxy_json(url, headers, upstream_payload, ac.clean_anthropic_response)
+    return await _proxy_json(url, headers, upstream_payload, lambda data: ac.clean_anthropic_response(data, requested_model))
 
 
 @router.post("/v1/messages/count_tokens")
