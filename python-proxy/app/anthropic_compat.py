@@ -53,26 +53,23 @@ def _strip_thinking(text: str) -> str:
     return text.strip()
 
 
-# Without a visible <think> open tag, there's no way to know in real time whether
-# in-progress text is reasoning or a real answer until </think> actually shows up (or
-# doesn't). This bounds how long we'll withhold output at the very start of a stream
-# to check for a dangling close before giving up and treating it as normal text — a
-# heuristic, not a guarantee: a longer un-tagged reasoning preamble than this won't be
-# fully caught, and short normal replies are held back in one lump up to this length
-# instead of streaming char-by-char.
-_UNDECIDED_HOLD_LIMIT = 300
-
-
 class _ThinkTagStripper:
     """Streaming counterpart to _strip_thinking: filters <think>...</think> (including
-    the dangling-close-with-no-open case) out of a sequence of text deltas, holding back
-    a small tail so a tag split across chunk boundaries is still caught."""
+    the dangling-close-with-no-open case) out of a sequence of text deltas.
+
+    Without a visible <think> open tag, there's no way to know whether in-progress text
+    is reasoning or a real answer until </think> actually shows up (or the stream ends
+    without one). So until that's resolved, everything is held back rather than risking
+    a partial reasoning-text leak — trading away token-by-token streaming for a response
+    that turns out to have no tags at all (it arrives as one lump at the end instead),
+    in exchange for never leaking a dangling close no matter how long the reasoning is.
+    """
 
     def __init__(self) -> None:
         self._buf = ""
         self._in_think = False
         self._decided = False  # False until we've resolved whether this stream opens
-        # with a dangling (open-tag-less) think block, or gone past the hold limit.
+        # with a dangling (open-tag-less) think block.
 
     def feed(self, text: str) -> str:
         if not text:
@@ -104,14 +101,7 @@ class _ThinkTagStripper:
                 continue
             break
 
-        if self._in_think:
-            return "".join(out)
-
-        if not self._decided:
-            if len(self._buf) > _UNDECIDED_HOLD_LIMIT:
-                self._decided = True
-                out.append(self._buf)
-                self._buf = ""
+        if self._in_think or not self._decided:
             return "".join(out)
 
         if self._buf:

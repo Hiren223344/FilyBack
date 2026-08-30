@@ -48,13 +48,14 @@ As a bonus, translated responses also get cleaned up:
 - `<think>...</think>` reasoning blocks from DeepSeek-R1-style models are
   stripped from the visible answer — including the case where a server
   injects `<think>` into the prompt template and only echoes back a bare
-  `</think>` with no matching open tag. In streaming responses this is a
-  best-effort heuristic: the first ~300 characters of a response are held
-  back briefly to check for a dangling `</think>` before being treated as
-  normal text, so a much longer un-tagged reasoning preamble won't be fully
-  caught, and short replies may arrive in one chunk instead of token-by-token
-  for those ~300 characters. `<think>` blocks with a visible open tag (the
-  common case) are always fully stripped regardless of length.
+  `</think>` with no matching open tag, however long that reasoning runs. In
+  streaming responses, since there's no way to know whether in-progress text
+  is reasoning or a real answer until `</think>` shows up (or doesn't),
+  output is held back until that's resolved — a response with a dangling
+  close streams normally from that point on, while a response that never
+  uses any tag at all arrives as one lump at the end instead of
+  token-by-token. `<think>` blocks with a visible open tag stream normally
+  before the tag (nothing to hold back for).
 
 ```python
 import anthropic
