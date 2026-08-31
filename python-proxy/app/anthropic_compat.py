@@ -116,6 +116,23 @@ class _ThinkTagStripper:
         return remaining
 
 
+# Anthropic uses {"type": "image", ...}; OpenAI uses {"type": "image_url", ...} (some
+# clients send "input_image" instead). Check for all of them regardless of which
+# endpoint the request came in on, since a caller's exact format can't be assumed.
+_IMAGE_BLOCK_TYPES = {"image", "image_url", "input_image"}
+
+
+def payload_has_image(payload: dict[str, Any]) -> bool:
+    for m in payload.get("messages", []):
+        content = m.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") in _IMAGE_BLOCK_TYPES:
+                return True
+    return False
+
+
 def flatten_content_to_text(content: Any) -> str:
     if isinstance(content, str):
         return content

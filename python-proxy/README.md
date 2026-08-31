@@ -18,6 +18,12 @@ For each entry you configure:
 - **System prompt** — merged as: `base system prompt` (dashboard-wide) + `this
   model's system prompt` + `the caller's own system prompt` (if any), in that
   order.
+- **Image model** *(optional)* — another configured model to transparently
+  route to whenever a request to this model includes an image (an OpenAI
+  `image_url`/`input_image` block or an Anthropic `image` block, in either
+  endpoint). The caller still sees the model id it originally requested in
+  the response; only the actual upstream, provider, and system prompt used
+  change. No image, or no image model set: routes normally.
 
 ## Anthropic compatibility
 

@@ -48,6 +48,7 @@
         <th>Provider model ID</th>
         <th>API key</th>
         <th>System prompt</th>
+        <th>Image model</th>
         <th></th>
       </tr>
     </thead>
@@ -60,6 +61,7 @@
         <td><code>{{ row.provider_model_id }}</code></td>
         <td><code>{{ mask(row.provider_api_key) }}</code></td>
         <td>{{ row.system_prompt or "" }}</td>
+        <td>{{ row.image_model_id or "" }}</td>
         <td class="actions">
           <a href="/models/{{ row.id }}/edit">Edit</a>
           <form class="inline" method="post" action="/models/{{ row.id }}/delete"
@@ -69,7 +71,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted">No models configured yet.</td></tr>
+      <tr><td colspan="8" class="muted">No models configured yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -106,6 +108,18 @@
 
     <label for="system_prompt">Per-model system prompt</label>
     <textarea id="system_prompt" name="system_prompt" placeholder="Optional, appended after the base system prompt">{{ edit_row.system_prompt if edit_row else '' }}</textarea>
+
+    <label for="image_model_id">Image model <span class="muted">(optional — route here automatically when a request includes an image)</span></label>
+    <select id="image_model_id" name="image_model_id">
+      <option value="">(none — route normally)</option>
+      {% for m in models %}
+        {% if not edit_row or m.model_id != edit_row.model_id %}
+        <option value="{{ m.model_id }}" {{ "selected" if edit_row and edit_row.image_model_id == m.model_id else "" }}>
+          {{ m.model_id }}
+        </option>
+        {% endif %}
+      {% endfor %}
+    </select>
 
     <button type="submit">{{ "Save changes" if edit_row else "Add model" }}</button>
     {% if edit_row %}<a href="/" style="margin-left:1rem;">Cancel</a>{% endif %}

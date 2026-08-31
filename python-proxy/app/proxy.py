@@ -1,4 +1,5 @@
 import json
+import sys
 from typing import Any, AsyncIterator, Callable
 
 import httpx
@@ -49,6 +50,19 @@ def _resolve_model(requested_model: str):
     return config_row, None
 
 
+def _route_for_payload(config_row, payload: dict[str, Any]):
+    """If the request carries an image and this model has an image-model configured,
+    transparently route to that model instead — the caller still sees the model id it
+    requested in the response; only the actual upstream/provider/system-prompt used
+    changes. No image, or no image-model configured: routes to config_row unchanged."""
+    image_model_id = config_row["image_model_id"]
+    if image_model_id and ac.payload_has_image(payload):
+        image_row = db.get_model_by_model_id(image_model_id)
+        if image_row is not None:
+            return image_row
+    return config_row
+
+
 @router.get("/v1/models")
 async def list_models() -> dict[str, Any]:
     rows = db.list_models()
@@ -75,6 +89,7 @@ async def chat_completions(request: Request) -> Any:
     config_row, err = _resolve_model(payload.get("model"))
     if err:
         return err
+    config_row = _route_for_payload(config_row, payload)
 
     messages = payload.get("messages")
     if not isinstance(messages, list):
@@ -124,6 +139,7 @@ async def messages(request: Request) -> Any:
     config_row, err = _resolve_model(payload.get("model"))
     if err:
         return err
+    config_row = _route_for_payload(config_row, payload)
 
     if not isinstance(payload.get("messages"), list):
         return _error("`messages` must be a list", 400, "invalid_messages")
@@ -170,6 +186,7 @@ async def count_tokens(request: Request) -> Any:
     config_row, err = _resolve_model(payload.get("model"))
     if err:
         return err
+    config_row = _route_for_payload(config_row, payload)
 
     caller_system_prompt = ac.flatten_content_to_text(payload.get("system", ""))
     combined_system_prompt = _combine_system_prompt(
@@ -216,10 +233,16 @@ async def _proxy_json(
     return JSONResponse(status_code=resp.status_code, content=body)
 
 
+# Which shape each streaming translator produces, so a mid-stream failure can be
+# reported in a format the client actually understands instead of a raw/ambiguous cutoff.
+_OPENAI_TARGET_TRANSLATORS = {"anthropic_sse_to_openai_chunks", "clean_openai_sse_stream"}
+
+
 async def _proxy_stream_translated(
     url: str, headers: dict[str, str], payload: dict[str, Any], translator: Translator, requested_model: str
 ) -> StreamingResponse:
     client = httpx.AsyncClient(timeout=None)
+    is_openai_target = translator.__name__ in _OPENAI_TARGET_TRANSLATORS
 
     async def event_gen():
         try:
@@ -230,9 +253,19 @@ async def _proxy_stream_translated(
                     return
                 async for chunk in translator(resp.aiter_lines(), requested_model):
                     yield chunk
-        except httpx.RequestError as exc:
-            err = json.dumps({"error": {"message": f"Failed to reach upstream provider: {exc}", "type": "upstream_unreachable"}})
-            yield f"data: {err}\n\n".encode()
+        except Exception as exc:
+            # Broad on purpose: an upstream connection that dies mid-stream (closed
+            # early, reset, malformed chunk) must never just vanish silently — the
+            # client is left hanging with no idea the response is over. Always tell it.
+            print(f"[proxy] stream to {url} failed mid-response: {exc!r}", file=sys.stderr)
+            message = f"Upstream connection ended unexpectedly: {exc}"
+            if is_openai_target:
+                err = json.dumps({"error": {"message": message, "type": "upstream_error", "code": "upstream_stream_error"}})
+                yield f"data: {err}\n\n".encode()
+                yield b"data: [DONE]\n\n"
+            else:
+                err = json.dumps({"type": "error", "error": {"type": "api_error", "message": message}})
+                yield f"event: error\ndata: {err}\n\n".encode()
         finally:
             await client.aclose()
 

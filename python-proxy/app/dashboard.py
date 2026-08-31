@@ -60,6 +60,7 @@ def create_model(
     provider_model_id: str = Form(...),
     provider_type: str = Form("openai"),
     system_prompt: str = Form(""),
+    image_model_id: str = Form(""),
 ):
     if db.get_model_by_model_id(model_id.strip()) is not None:
         raise HTTPException(status_code=400, detail=f"Model id '{model_id}' already exists")
@@ -72,6 +73,7 @@ def create_model(
         provider_model_id.strip(),
         provider_type,
         system_prompt,
+        image_model_id.strip() or None,
     )
     return RedirectResponse(url="/", status_code=303)
 
@@ -85,6 +87,7 @@ def update_model(
     provider_model_id: str = Form(...),
     provider_type: str = Form("openai"),
     system_prompt: str = Form(""),
+    image_model_id: str = Form(""),
 ):
     if db.get_model(pk_id) is None:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -98,6 +101,7 @@ def update_model(
         provider_model_id.strip(),
         provider_type,
         system_prompt,
+        image_model_id.strip() or None,
     )
     return RedirectResponse(url="/", status_code=303)
 
