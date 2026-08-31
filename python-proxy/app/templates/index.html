@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Model Proxy Dashboard</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2.5rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #8883; vertical-align: top; }
+  code { font-size: 0.85em; }
+  form.inline { display: inline; }
+  .card { border: 1px solid #8883; border-radius: 8px; padding: 1.25rem; margin-top: 1rem; }
+  label { display: block; margin-top: 0.75rem; font-weight: 600; font-size: 0.9rem; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; padding: 0.4rem; margin-top: 0.25rem; box-sizing: border-box;
+    font-family: inherit; font-size: 0.95rem;
+  }
+  textarea { min-height: 4.5rem; }
+  button { margin-top: 1rem; padding: 0.5rem 1rem; cursor: pointer; }
+  .danger { color: #c0392b; background: none; border: none; padding: 0; text-decoration: underline; cursor: pointer; }
+  .muted { color: #888; font-size: 0.85rem; }
+  .actions a, .actions button { margin-right: 0.75rem; }
+</style>
+</head>
+<body>
+  <h1>Model Proxy Dashboard</h1>
+  <p class="muted">Point OpenAI-compatible clients at this proxy. Requests to <code>/v1/chat/completions</code> with
+  <code>model=&lt;model id below&gt;</code> get forwarded to the mapped provider, with the base + per-model system
+  prompt merged onto whatever system prompt the caller sends.</p>
+
+  <h2>Base system prompt</h2>
+  <p class="muted">Prepended to every request, before the per-model and caller's own system prompts.</p>
+  <form class="card" method="post" action="/settings">
+    <textarea name="base_system_prompt">{{ base_system_prompt }}</textarea>
+    <button type="submit">Save base prompt</button>
+  </form>
+
+  <h2>Models</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Model ID (used by callers)</th>
+        <th>Provider</th>
+        <th>Provider base URL</th>
+        <th>Provider model ID</th>
+        <th>API key</th>
+        <th>System prompt</th>
+        <th>Image model</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in models %}
+      <tr>
+        <td><code>{{ row.model_id }}</code></td>
+        <td>{{ row.provider_type }}</td>
+        <td>{{ row.provider_base_url }}</td>
+        <td><code>{{ row.provider_model_id }}</code></td>
+        <td><code>{{ mask(row.provider_api_key) }}</code></td>
+        <td>{{ row.system_prompt or "" }}</td>
+        <td>{{ row.image_model_id or "" }}</td>
+        <td class="actions">
+          <a href="/models/{{ row.id }}/edit">Edit</a>
+          <form class="inline" method="post" action="/models/{{ row.id }}/delete"
+                onsubmit="return confirm('Delete model {{ row.model_id }}?');">
+            <button type="submit" class="danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="muted">No models configured yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{{ "Edit model" if edit_row else "Add model" }}</h2>
+  <form class="card" method="post"
+        action="{{ '/models/' ~ edit_row.id if edit_row else '/models' }}">
+    <label for="model_id">Model ID (what callers pass as "model")</label>
+    <input type="text" id="model_id" name="model_id" required placeholder="my-gpt4"
+           value="{{ edit_row.model_id if edit_row else '' }}">
+
+    <label for="provider_type">Provider API format</label>
+    <select id="provider_type" name="provider_type">
+      <option value="openai" {{ "selected" if not edit_row or edit_row.provider_type == "openai" else "" }}>
+        OpenAI-compatible (/chat/completions, Bearer auth)
+      </option>
+      <option value="anthropic" {{ "selected" if edit_row and edit_row.provider_type == "anthropic" else "" }}>
+        Anthropic (/messages, x-api-key auth)
+      </option>
+    </select>
+
+    <label for="provider_base_url">Provider base URL</label>
+    <input type="text" id="provider_base_url" name="provider_base_url" required
+           placeholder="https://api.openai.com/v1 or https://api.anthropic.com/v1"
+           value="{{ edit_row.provider_base_url if edit_row else '' }}">
+
+    <label for="provider_model_id">Provider's model ID</label>
+    <input type="text" id="provider_model_id" name="provider_model_id" required placeholder="gpt-4o or claude-opus-5"
+           value="{{ edit_row.provider_model_id if edit_row else '' }}">
+
+    <label for="provider_api_key">Provider API key {% if edit_row %}<span class="muted">(leave blank to keep current)</span>{% endif %}</label>
+    <input type="password" id="provider_api_key" name="provider_api_key" {{ "required" if not edit_row else "" }}
+           placeholder="sk-...">
+
+    <label for="system_prompt">Per-model system prompt</label>
+    <textarea id="system_prompt" name="system_prompt" placeholder="Optional, appended after the base system prompt">{{ edit_row.system_prompt if edit_row else '' }}</textarea>
+
+    <label for="image_model_id">Image model <span class="muted">(optional — route here automatically when a request includes an image)</span></label>
+    <select id="image_model_id" name="image_model_id">
+      <option value="">(none — route normally)</option>
+      {% for m in models %}
+        {% if not edit_row or m.model_id != edit_row.model_id %}
+        <option value="{{ m.model_id }}" {{ "selected" if edit_row and edit_row.image_model_id == m.model_id else "" }}>
+          {{ m.model_id }}
+        </option>
+        {% endif %}
+      {% endfor %}
+    </select>
+
+    <button type="submit">{{ "Save changes" if edit_row else "Add model" }}</button>
+    {% if edit_row %}<a href="/" style="margin-left:1rem;">Cancel</a>{% endif %}
+  </form>
+</body>
+</html>
